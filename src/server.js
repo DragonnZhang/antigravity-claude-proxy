@@ -322,18 +322,20 @@ app.get('/account-limits', async (req, res) => {
                 let accStatus;
                 if (acc.isInvalid) {
                     accStatus = 'invalid';
+                } else if (accLimit?.status === 'error') {
+                    accStatus = 'error';
                 } else {
-                    // Only show "limited" if ALL models are exhausted (0%)
+                    // Count exhausted models (0% or null remaining)
                     const models = accLimit?.models || {};
                     const modelCount = Object.keys(models).length;
                     const exhaustedCount = Object.values(models).filter(
                         q => q.remainingFraction === 0 || q.remainingFraction === null
                     ).length;
 
-                    if (modelCount > 0 && exhaustedCount === modelCount) {
-                        accStatus = 'limited';
+                    if (exhaustedCount === 0) {
+                        accStatus = 'ok';
                     } else {
-                        accStatus = accLimit?.status === 'error' ? 'error' : 'ok';
+                        accStatus = `(${exhaustedCount}/${modelCount}) limited`;
                     }
                 }
 
