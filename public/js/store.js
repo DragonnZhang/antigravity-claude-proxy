@@ -79,6 +79,7 @@ document.addEventListener('alpine:init', () => {
                 linkedAccounts: "Linked Accounts",
                 noSignal: "NO SIGNAL DETECTED",
                 establishingUplink: "ESTABLISHING UPLINK...",
+                goToAccounts: "Go to Accounts",
                 // Settings - Models
                 modelsDesc: "Configure model visibility, pinning, and request routing.",
                 modelsPageDesc: "Real-time quota and status for all available models.",
@@ -326,6 +327,7 @@ document.addEventListener('alpine:init', () => {
                 linkedAccounts: "已关联账号",
                 noSignal: "无信号连接",
                 establishingUplink: "正在建立上行链路...",
+                goToAccounts: "前往账号管理",
                 // Settings - Models
                 modelsDesc: "配置模型的可见性、置顶和请求路由。",
                 modelsPageDesc: "所有可用模型的实时配额和状态。",

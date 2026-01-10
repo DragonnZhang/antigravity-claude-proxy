@@ -14,6 +14,7 @@ document.addEventListener('alpine:init', () => {
         quotaRows: [], // Filtered view
         usageHistory: {}, // Usage statistics history (from /account-limits?includeHistory=true)
         loading: false,
+        initialLoad: true, // Track first load for skeleton screen
         connectionStatus: 'connecting',
         lastUpdated: '-',
 
@@ -36,7 +37,10 @@ document.addEventListener('alpine:init', () => {
         },
 
         async fetchData() {
-            this.loading = true;
+            // Only show skeleton on initial load, not on refresh
+            if (this.initialLoad) {
+                this.loading = true;
+            }
             try {
                 // Get password from global store
                 const password = Alpine.store('global').webuiPassword;
@@ -72,6 +76,7 @@ document.addEventListener('alpine:init', () => {
                 store.showToast(store.t('connectionLost'), 'error');
             } finally {
                 this.loading = false;
+                this.initialLoad = false; // Mark initial load as complete
             }
         },
 
