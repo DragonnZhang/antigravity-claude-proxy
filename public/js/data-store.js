@@ -375,11 +375,7 @@ document.addEventListener('alpine:init', () => {
                     quotaInfo.push({ pct });
                 });
 
-                if (quotaInfo.length === 0) {
-                    // Include model even if no quota info is available (treat as 0% or unknown)
-                    // This ensures the family appears in the charts
-                }
-
+                // treat missing quotaInfo as 0%/unknown; still include row
                 rows.push({ modelId, family, quotaInfo });
             });
 
