@@ -3,8 +3,8 @@
  *
  * Implements Anthropic's /v1/messages/count_tokens endpoint
  * Uses official tokenizers for each model family:
- * - Claude: @anthropic-ai/tokenizer (99.99% accuracy)
- * - Gemini: @lenml/tokenizer-gemini (99.99% accuracy)
+ * - Claude: @anthropic-ai/tokenizer
+ * - Gemini: @lenml/tokenizer-gemini
  *
  * @see https://platform.claude.com/docs/en/api/messages-count-tokens
  */
@@ -112,6 +112,12 @@ function estimateTextTokens(text, model, geminiTok = null) {
 /**
  * Extract text from message content
  *
+ * Note: This function only extracts text from 'text' type blocks.
+ * Image blocks (type: 'image') and document blocks (type: 'document') are not tokenized
+ * and will not contribute to the token count. This is intentional as binary content
+ * requires different handling and Anthropic's actual token counting for images uses
+ * a fixed estimate (~1600 tokens per image) that depends on image dimensions.
+ *
  * @param {string|Array} content - Message content
  * @returns {string} Concatenated text
  */
@@ -194,7 +200,7 @@ function countTokensLocally(request, geminiTok = null) {
 /**
  * Count tokens in a message request
  * Implements Anthropic's /v1/messages/count_tokens endpoint
- * Uses local tokenization for all content types (99.99% accuracy)
+ * Uses local tokenization for all content types
  *
  * @param {Object} anthropicRequest - Anthropic format request with messages, model, system, tools
  * @param {Object} accountManager - Account manager instance (unused, kept for API compatibility)

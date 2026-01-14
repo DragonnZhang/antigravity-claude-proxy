@@ -599,7 +599,7 @@ app.get('/v1/models', async (req, res) => {
 
 /**
  * Count tokens endpoint - Anthropic Messages API compatible
- * Uses hybrid approach: local tokenizer for text, API for complex content (images, documents)
+ * Uses local tokenization with official tokenizers (@anthropic-ai/tokenizer for Claude, @lenml/tokenizer-gemini for Gemini)
  */
 app.post('/v1/messages/count_tokens', async (req, res) => {
     try {

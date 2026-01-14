@@ -2,7 +2,7 @@
  * Test Count Tokens - Tests for the /v1/messages/count_tokens endpoint
  *
  * Verifies token counting functionality:
- * - Local estimation using gpt-tokenizer
+ * - Local estimation using official tokenizers (@anthropic-ai/tokenizer for Claude, @lenml/tokenizer-gemini for Gemini)
  * - Request validation
  * - Different content types (text, tools, system prompts)
  */
@@ -434,6 +434,47 @@ async function runTests() {
         assert(response.statusCode === 200, `Expected 200, got ${response.statusCode}`);
         assertType(response.input_tokens, 'number', 'input_tokens');
         assertGreater(response.input_tokens, 10, 'input_tokens');
+    });
+
+    // Test 16: Gemini model token counting
+    await test('Gemini model returns token count', async () => {
+        const response = await countTokensRequest({
+            model: 'gemini-3-flash',
+            messages: [
+                { role: 'user', content: 'Hello, how are you?' }
+            ]
+        });
+
+        assert(response.statusCode === 200, `Expected 200, got ${response.statusCode}`);
+        assertType(response.input_tokens, 'number', 'input_tokens');
+        assertGreater(response.input_tokens, 0, 'input_tokens');
+    });
+
+    // Test 17: Gemini model with system prompt and tools
+    await test('Gemini model with system prompt and tools', async () => {
+        const response = await countTokensRequest({
+            model: 'gemini-3-flash',
+            system: 'You are a helpful assistant.',
+            messages: [
+                { role: 'user', content: 'What is the weather in Tokyo?' }
+            ],
+            tools: [
+                {
+                    name: 'get_weather',
+                    description: 'Get weather for a location',
+                    input_schema: {
+                        type: 'object',
+                        properties: {
+                            location: { type: 'string' }
+                        }
+                    }
+                }
+            ]
+        });
+
+        assert(response.statusCode === 200, `Expected 200, got ${response.statusCode}`);
+        assertType(response.input_tokens, 'number', 'input_tokens');
+        assertGreater(response.input_tokens, 10, 'input_tokens for Gemini with tools');
     });
 
     // Summary
