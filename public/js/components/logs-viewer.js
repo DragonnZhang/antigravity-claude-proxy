@@ -283,6 +283,10 @@ window.Components.logsViewer = () => ({
         if (this.logEventSource) this.logEventSource.close();
         if (this.eventEventSource) this.eventEventSource.close();
 
+        // Clear logs on reconnect to avoid duplicates from history replay
+        this.logs = [];
+        this.expandedLogs.clear();
+
         const store = Alpine.store('global');
         const historyLimit = Alpine.store('settings')?.logLimit || window.AppConstants.LIMITS.DEFAULT_LOG_LIMIT;
 
@@ -326,27 +330,35 @@ window.Components.logsViewer = () => ({
             // Handle both single event and array (history)
             const newLogs = Array.isArray(parsed) ? parsed : [parsed];
 
-            // Map/Normalize logs
-            const processedLogs = newLogs.map((log, index) => ({
-                ...log,
-                // Ensure timestamp is a Date object or string
-                timestamp: log.timestamp || new Date().toISOString(),
-                // Map severity to level if missing
-                level: (log.level || log.severity || 'INFO').toUpperCase(),
-                // Ensure type exists (use 'system' for regular logs)
-                type: log.type || 'system',
-                // Mark the source
-                _source: source,
-                // Generate a unique ID: use existing id with source prefix, or generate new one
-                // This prevents duplicates when same event comes from different streams
-                _ui_id: log.id
-                    ? `${source}_${log.id}`
-                    : `${source}_${Date.now()}_${index}_${Math.random().toString(36).substring(2, 9)}`
-            }));
+            // Build a set of existing IDs for deduplication
+            const existingIds = new Set(this.logs.map(l => l._ui_id));
 
-            // Filter out 'connected' system messages from event stream
+            // Map/Normalize logs
+            const processedLogs = newLogs.map((log, index) => {
+                // Generate a unique ID based on source and log id (or timestamp + random)
+                const baseId = log.id
+                    ? `${source}_${log.id}`
+                    : `${source}_${log.timestamp || Date.now()}_${index}_${Math.random().toString(36).substring(2, 9)}`;
+
+                return {
+                    ...log,
+                    // Ensure timestamp is a Date object or string
+                    timestamp: log.timestamp || new Date().toISOString(),
+                    // Map severity to level if missing
+                    level: (log.level || log.severity || 'INFO').toUpperCase(),
+                    // Ensure type exists (use 'system' for regular logs)
+                    type: log.type || 'system',
+                    // Mark the source
+                    _source: source,
+                    // Use the generated ID
+                    _ui_id: baseId
+                };
+            });
+
+            // Filter out 'connected' system messages and duplicates
             const filteredLogs = processedLogs.filter(log =>
-                !(log.type === 'connected' && log._source === 'event')
+                !(log.type === 'connected' && log._source === 'event') &&
+                !existingIds.has(log._ui_id)
             );
 
             if (filteredLogs.length === 0) return;
