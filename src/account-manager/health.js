@@ -27,7 +27,16 @@ const DEFAULT_CONFIG = {
     // Event retention: max number of events to keep
     eventMaxCount: 10000,
     // Event retention: max age in days (30 days = 1 month)
-    eventRetentionDays: 30
+    eventRetentionDays: 30,
+
+    // Quota-based protection (Google suspends accounts that frequently exceed 10% remaining)
+    // Enable quota threshold auto-disable
+    quotaThresholdEnabled: true,
+    // Disable when remaining quota falls to this percentage (0.2 = 20% remaining)
+    // Set to 20% to provide safety margin before Google's risky 10% threshold
+    quotaThreshold: 0.2,
+    // Recovery mode: 'reset_time' (use API reset time) or 'fixed' (use autoRecoveryMs)
+    quotaRecoveryMode: 'reset_time'
 };
 
 // Initialize config from main config.js or defaults
@@ -51,7 +60,11 @@ function initHealth() {
         disabled: false,
         manualDisabled: false,
         disabledReason: null,
-        disabledAt: null
+        disabledAt: null,
+        // Quota-based disable fields
+        quotaDisabled: false,
+        quotaDisabledAt: null,
+        quotaResetTime: null  // When quota resets (from API)
     };
 }
 
@@ -159,7 +172,7 @@ export function recordResult(account, modelId, success, error = null) {
 
 /**
  * Check if a model is usable for a given account
- * Returns false if the combination is disabled (auto or manual)
+ * Returns false if the combination is disabled (auto, manual, or quota)
  *
  * @param {Object} account - Account object
  * @param {string} modelId - Model ID
@@ -172,7 +185,39 @@ export function isModelUsable(account, modelId) {
 
     const health = account.health[modelId];
 
-    // Check auto-recovery for disabled combinations
+    // Check quota-based recovery first
+    if (health.quotaDisabled && health.quotaResetTime) {
+        const now = Date.now();
+        const resetTime = new Date(health.quotaResetTime).getTime();
+
+        if (healthConfig.quotaRecoveryMode === 'reset_time' && now >= resetTime) {
+            // Quota has reset, auto-recover
+            health.quotaDisabled = false;
+            health.quotaDisabledAt = null;
+            health.quotaResetTime = null;
+            logger.info(`[Health] Quota recovery triggered: ${account.email} × ${modelId} (quota reset)`);
+            eventManager.recordHealthChange(account.email, modelId, 'recovered', {
+                previousState: 'quota_disabled',
+                trigger: 'quota_reset_time'
+            });
+        } else if (healthConfig.quotaRecoveryMode === 'fixed' && health.quotaDisabledAt) {
+            // Use fixed recovery time
+            const disabledTime = now - new Date(health.quotaDisabledAt).getTime();
+            if (disabledTime > healthConfig.autoRecoveryMs) {
+                health.quotaDisabled = false;
+                health.quotaDisabledAt = null;
+                health.quotaResetTime = null;
+                logger.info(`[Health] Quota recovery triggered: ${account.email} × ${modelId} (fixed timeout)`);
+                eventManager.recordHealthChange(account.email, modelId, 'recovered', {
+                    previousState: 'quota_disabled',
+                    trigger: 'fixed_timeout',
+                    disabledDurationMs: disabledTime
+                });
+            }
+        }
+    }
+
+    // Check auto-recovery for failure-based disabled combinations
     if (health.disabled && !health.manualDisabled && health.disabledAt) {
         const disabledTime = Date.now() - new Date(health.disabledAt).getTime();
         if (disabledTime > healthConfig.autoRecoveryMs) {
@@ -192,7 +237,8 @@ export function isModelUsable(account, modelId) {
         }
     }
 
-    return !health.disabled && !health.manualDisabled;
+    // Check all disable conditions
+    return !health.disabled && !health.manualDisabled && !health.quotaDisabled;
 }
 
 /**
@@ -229,6 +275,114 @@ export function toggleModel(account, modelId, enabled) {
     }
 
     return health;
+}
+
+/**
+ * Check quota and disable if below threshold
+ * Called when quota data is refreshed from API
+ *
+ * @param {Object} account - Account object
+ * @param {string} modelId - Model ID
+ * @param {number} remainingFraction - Remaining quota (0-1, e.g., 0.2 = 20%)
+ * @param {string|null} resetTime - ISO timestamp when quota resets
+ * @returns {Object|null} Updated health object, or null if no action taken
+ */
+export function checkQuotaThreshold(account, modelId, remainingFraction, resetTime = null) {
+    if (!healthConfig.quotaThresholdEnabled) {
+        return null; // Feature disabled
+    }
+
+    if (remainingFraction === null || remainingFraction === undefined) {
+        return null; // No quota data
+    }
+
+    if (!account) return null;
+
+    // Initialize health if not exists
+    if (!account.health) {
+        account.health = {};
+    }
+    if (!account.health[modelId]) {
+        account.health[modelId] = initHealth();
+    }
+
+    const health = account.health[modelId];
+
+    // Check if quota is below threshold
+    if (remainingFraction <= healthConfig.quotaThreshold) {
+        // Should disable
+        if (!health.quotaDisabled) {
+            health.quotaDisabled = true;
+            health.quotaDisabledAt = new Date().toISOString();
+            health.quotaResetTime = resetTime;
+
+            const pct = Math.round(remainingFraction * 100);
+            const thresholdPct = Math.round(healthConfig.quotaThreshold * 100);
+            logger.warn(`[Health] Quota threshold reached: ${account.email} × ${modelId} (${pct}% remaining, threshold: ${thresholdPct}%)`);
+
+            eventManager.recordHealthChange(account.email, modelId, 'quota_disabled', {
+                remainingFraction,
+                threshold: healthConfig.quotaThreshold,
+                resetTime
+            });
+
+            return health;
+        }
+    } else {
+        // Quota is above threshold, check if we should re-enable
+        if (health.quotaDisabled) {
+            health.quotaDisabled = false;
+            health.quotaDisabledAt = null;
+            health.quotaResetTime = null;
+
+            const pct = Math.round(remainingFraction * 100);
+            logger.info(`[Health] Quota recovered: ${account.email} × ${modelId} (${pct}% remaining)`);
+
+            eventManager.recordHealthChange(account.email, modelId, 'recovered', {
+                previousState: 'quota_disabled',
+                trigger: 'quota_above_threshold',
+                remainingFraction
+            });
+
+            return health;
+        }
+    }
+
+    return null;
+}
+
+/**
+ * Batch check quota for all models of an account
+ * Called when account quota data is refreshed
+ *
+ * @param {Object} account - Account object
+ * @param {Object} quotas - Map of modelId -> { remainingFraction, resetTime }
+ * @returns {Array} List of models that were disabled or enabled
+ */
+export function checkAccountQuotas(account, quotas) {
+    if (!healthConfig.quotaThresholdEnabled || !account || !quotas) {
+        return [];
+    }
+
+    const changes = [];
+
+    for (const [modelId, quota] of Object.entries(quotas)) {
+        const result = checkQuotaThreshold(
+            account,
+            modelId,
+            quota.remainingFraction,
+            quota.resetTime
+        );
+        if (result) {
+            changes.push({
+                modelId,
+                quotaDisabled: result.quotaDisabled,
+                remainingFraction: quota.remainingFraction
+            });
+        }
+    }
+
+    return changes;
 }
 
 /**
@@ -309,8 +463,10 @@ export function buildHealthMatrix(accounts, modelIds) {
                     successCount: health.successCount,
                     failCount: health.failCount,
                     consecutiveFailures: health.consecutiveFailures,
-                    disabled: health.disabled || health.manualDisabled,
+                    disabled: health.disabled || health.manualDisabled || health.quotaDisabled,
                     manualDisabled: health.manualDisabled,
+                    quotaDisabled: health.quotaDisabled || false,
+                    quotaResetTime: health.quotaResetTime || null,
                     lastError: health.lastError,
                     lastSuccess: health.lastSuccess
                 };
@@ -323,6 +479,8 @@ export function buildHealthMatrix(accounts, modelIds) {
                     consecutiveFailures: 0,
                     disabled: false,
                     manualDisabled: false,
+                    quotaDisabled: false,
+                    quotaResetTime: null,
                     lastError: null,
                     lastSuccess: null
                 };
@@ -413,6 +571,29 @@ function validateHealthConfig(config) {
         }
     }
 
+    // Validate quotaThresholdEnabled (must be boolean)
+    if (config.quotaThresholdEnabled !== undefined) {
+        if (typeof config.quotaThresholdEnabled !== 'boolean') {
+            errors.push('quotaThresholdEnabled must be a boolean');
+        }
+    }
+
+    // Validate quotaThreshold (must be 0-1 fraction)
+    if (config.quotaThreshold !== undefined) {
+        const val = config.quotaThreshold;
+        if (typeof val !== 'number' || val < 0.01 || val > 0.5) {
+            errors.push('quotaThreshold must be a number between 0.01 and 0.5 (1% to 50%)');
+        }
+    }
+
+    // Validate quotaRecoveryMode (must be 'reset_time' or 'fixed')
+    if (config.quotaRecoveryMode !== undefined) {
+        const val = config.quotaRecoveryMode;
+        if (val !== 'reset_time' && val !== 'fixed') {
+            errors.push('quotaRecoveryMode must be "reset_time" or "fixed"');
+        }
+    }
+
     return { valid: errors.length === 0, errors };
 }
 
@@ -453,6 +634,7 @@ export function getHealthSummary(accounts) {
     let warningCombinations = 0;
     let criticalCombinations = 0;
     let disabledCombinations = 0;
+    let quotaDisabledCombinations = 0;
 
     for (const account of accounts) {
         if (!account.health) continue;
@@ -460,7 +642,10 @@ export function getHealthSummary(accounts) {
         for (const [, health] of Object.entries(account.health)) {
             totalCombinations++;
 
-            if (health.disabled || health.manualDisabled) {
+            if (health.quotaDisabled) {
+                quotaDisabledCombinations++;
+                disabledCombinations++;
+            } else if (health.disabled || health.manualDisabled) {
                 disabledCombinations++;
             } else if (health.healthScore < healthConfig.criticalThreshold) {
                 criticalCombinations++;
@@ -478,6 +663,7 @@ export function getHealthSummary(accounts) {
         warning: warningCombinations,
         critical: criticalCombinations,
         disabled: disabledCombinations,
+        quotaDisabled: quotaDisabledCombinations,
         config: healthConfig
     };
 }

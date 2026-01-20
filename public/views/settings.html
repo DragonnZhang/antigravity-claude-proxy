@@ -996,6 +996,91 @@
                     </div>
                 </div>
 
+                <!-- Quota Protection -->
+                <div class="view-card border-yellow-500/20 bg-yellow-500/5">
+                    <div class="flex items-center gap-4 mb-4">
+                        <div class="w-10 h-10 rounded-lg bg-yellow-500/10 flex items-center justify-center text-yellow-500">
+                            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                            </svg>
+                        </div>
+                        <div>
+                            <h4 class="text-sm font-bold text-white mb-0.5" x-text="$store.global.t('quotaProtection') || 'Quota Protection'">Quota Protection</h4>
+                            <p class="text-xs text-gray-500" x-text="$store.global.t('quotaProtectionDesc') || 'Protect accounts from Google suspension by limiting quota usage'">Protect accounts from Google suspension by limiting quota usage</p>
+                        </div>
+                    </div>
+
+                    <div class="space-y-4">
+                        <div class="form-control">
+                            <div class="flex items-center justify-between">
+                                <div class="flex flex-col gap-1">
+                                    <span class="text-sm font-medium text-gray-200"
+                                        :class="healthConfig.quotaThresholdEnabled ? 'text-yellow-500' : ''"
+                                        x-text="$store.global.t('quotaThresholdEnable') || 'Enable Quota Protection'">Enable Quota Protection</span>
+                                    <span class="text-[11px] text-gray-500" x-text="$store.global.t('quotaThresholdEnableDesc') || 'Auto-disable when quota falls below threshold'">
+                                        Auto-disable when quota falls below threshold</span>
+                                </div>
+                                <label class="relative inline-flex items-center cursor-pointer">
+                                    <input type="checkbox" class="sr-only peer"
+                                        :checked="healthConfig.quotaThresholdEnabled === true"
+                                        @change="updateHealthConfig({ quotaThresholdEnabled: $el.checked })"
+                                        aria-label="Enable Quota Protection toggle">
+                                    <div
+                                        class="w-9 h-5 bg-space-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-gray-600 after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-yellow-500 peer-checked:after:bg-white">
+                                    </div>
+                                </label>
+                            </div>
+                        </div>
+
+                        <div class="h-px bg-space-border/30 my-4"></div>
+
+                        <div class="form-control">
+                            <label class="label pt-0">
+                                <span class="label-text text-gray-400 text-xs" x-text="$store.global.t('quotaThreshold') || 'Quota Threshold'">Quota Threshold</span>
+                                <span class="label-text-alt font-mono text-yellow-500 text-xs font-semibold" x-text="Math.round((healthConfig.quotaThreshold || 0.2) * 100) + '%'"></span>
+                            </label>
+                            <div class="flex gap-3 items-center">
+                                <input type="range" min="5" max="50" class="custom-range custom-range-yellow flex-1"
+                                    :value="Math.round((healthConfig.quotaThreshold || 0.2) * 100)"
+                                    :style="`background-size: ${((healthConfig.quotaThreshold || 0.2) * 100 - 5) / 45 * 100}% 100%`"
+                                    @input="setQuotaThreshold($event.target.value)"
+                                    aria-label="Quota threshold slider">
+                                <input type="number" min="5" max="50"
+                                    class="input input-xs input-bordered w-16 bg-space-800 border-space-border text-white font-mono text-center"
+                                    :value="Math.round((healthConfig.quotaThreshold || 0.2) * 100)"
+                                    @change="setQuotaThreshold($event.target.value)"
+                                    aria-label="Quota threshold value">
+                            </div>
+                            <p class="text-[9px] text-gray-600 mt-1 leading-tight" x-text="$store.global.t('quotaThresholdDesc') || 'Disable when remaining quota falls to this percentage (Google suspends at ~10%)'">Disable when remaining quota falls to this percentage (Google suspends at ~10%)</p>
+                        </div>
+
+                        <div class="form-control">
+                            <label class="label pt-0">
+                                <span class="label-text text-gray-400 text-xs" x-text="$store.global.t('quotaRecoveryMode') || 'Recovery Mode'">Recovery Mode</span>
+                            </label>
+                            <div class="flex gap-2">
+                                <button class="btn btn-xs flex-1 transition-all"
+                                    :class="(healthConfig.quotaRecoveryMode || 'reset_time') === 'reset_time' ? 'btn-warning' : 'btn-ghost border-space-border'"
+                                    @click="updateHealthConfig({ quotaRecoveryMode: 'reset_time' })">
+                                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                    </svg>
+                                    <span x-text="$store.global.t('quotaRecoveryReset') || 'Quota Reset'">Quota Reset</span>
+                                </button>
+                                <button class="btn btn-xs flex-1 transition-all"
+                                    :class="healthConfig.quotaRecoveryMode === 'fixed' ? 'btn-warning' : 'btn-ghost border-space-border'"
+                                    @click="updateHealthConfig({ quotaRecoveryMode: 'fixed' })">
+                                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                    </svg>
+                                    <span x-text="$store.global.t('quotaRecoveryFixed') || 'Fixed Time'">Fixed Time</span>
+                                </button>
+                            </div>
+                            <p class="text-[9px] text-gray-600 mt-1 leading-tight" x-text="$store.global.t('quotaRecoveryModeDesc') || 'When to re-enable: at API quota reset time, or after fixed recovery hours'">When to re-enable: at API quota reset time, or after fixed recovery hours</p>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- Data Retention -->
                 <div class="view-card border-space-border/50">
                     <div class="flex items-center gap-3 mb-4">

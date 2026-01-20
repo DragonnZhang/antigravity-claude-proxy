@@ -229,6 +229,9 @@ app.get('/health', async (req, res) => {
                     const projectId = account.subscription?.projectId || null;
                     const quotas = await getModelQuotas(token, projectId);
 
+                    // Check quota thresholds and auto-disable if needed
+                    accountManager.checkAccountQuotas(account.email, quotas);
+
                     // Format quotas for readability
                     const formattedQuotas = {};
                     for (const [modelId, info] of Object.entries(quotas)) {
@@ -327,6 +330,9 @@ app.get('/account-limits', async (req, res) => {
 
                     // Then fetch quotas with project ID for accurate quota info
                     const quotas = await getModelQuotas(token, subscription.projectId);
+
+                    // Check quota thresholds and auto-disable if needed
+                    accountManager.checkAccountQuotas(account.email, quotas);
 
                     // Update account object with fresh data
                     account.subscription = {

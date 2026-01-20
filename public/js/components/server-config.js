@@ -377,5 +377,14 @@ window.Components.serverConfig = () => ({
         const { RETENTION_DAYS_MIN, RETENTION_DAYS_MAX } = window.AppConstants.VALIDATION;
         const validation = window.Validators.validateRange(value, RETENTION_DAYS_MIN, RETENTION_DAYS_MAX, 'Retention Days');
         if (validation.isValid) this.updateHealthConfig({ eventRetentionDays: validation.value });
+    },
+
+    // Quota Protection Settings
+    setQuotaThreshold(value) {
+        // value is percentage (5-50), convert to fraction (0.05-0.5)
+        const pct = parseInt(value, 10);
+        if (pct >= 5 && pct <= 50) {
+            this.updateHealthConfig({ quotaThreshold: pct / 100 });
+        }
     }
 });

@@ -39,7 +39,9 @@ import {
     buildHealthMatrix as buildMatrix,
     getHealthConfig as getHConfig,
     setHealthConfig as setHConfig,
-    getHealthSummary as getHSummary
+    getHealthSummary as getHSummary,
+    checkQuotaThreshold as checkQuota,
+    checkAccountQuotas as checkAccQuotas
 } from './health.js';
 import { logger } from '../utils/logger.js';
 
@@ -449,6 +451,48 @@ export class AccountManager {
      */
     getHealthSummary() {
         return getHSummary(this.#accounts);
+    }
+
+    /**
+     * Check quota threshold for a specific account × model
+     * Disables combination if quota is below threshold
+     *
+     * @param {string} email - Account email
+     * @param {string} modelId - Model ID
+     * @param {number} remainingFraction - Remaining quota (0-1)
+     * @param {string|null} resetTime - ISO timestamp when quota resets
+     * @returns {Object|null} Updated health object or null
+     */
+    checkQuotaThreshold(email, modelId, remainingFraction, resetTime = null) {
+        const account = this.#accounts.find(a => a.email === email);
+        if (!account) return null;
+
+        const result = checkQuota(account, modelId, remainingFraction, resetTime);
+        if (result) {
+            // Save if there was a change
+            this.save();
+        }
+        return result;
+    }
+
+    /**
+     * Check all quotas for an account
+     * Called when quota data is refreshed from API
+     *
+     * @param {string} email - Account email
+     * @param {Object} quotas - Map of modelId -> { remainingFraction, resetTime }
+     * @returns {Array} List of models that were disabled or enabled
+     */
+    checkAccountQuotas(email, quotas) {
+        const account = this.#accounts.find(a => a.email === email);
+        if (!account) return [];
+
+        const changes = checkAccQuotas(account, quotas);
+        if (changes.length > 0) {
+            // Save if there were changes
+            this.save();
+        }
+        return changes;
     }
 }
 

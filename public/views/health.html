@@ -198,7 +198,9 @@
                                                 <div class="flex justify-between"><span class="text-gray-500" x-text="$store.global.t('score') + ':'">Score:</span> <span class="text-white" x-text="cell.healthScore + '%'"></span></div>
                                                 <div class="flex justify-between"><span class="text-gray-500" x-text="$store.global.t('success') + ':'">Success:</span> <span class="text-neon-green" x-text="cell.successCount"></span></div>
                                                 <div class="flex justify-between"><span class="text-gray-500" x-text="$store.global.t('failures') + ':'">Failures:</span> <span class="text-red-400" x-text="cell.failCount"></span></div>
-                                                <div x-show="cell.disabled" class="text-red-500 font-bold mt-1" x-text="$store.global.t('disabled').toUpperCase()">DISABLED</div>
+                                                <div x-show="cell.quotaDisabled" class="text-orange-500 font-bold mt-1">QUOTA LIMIT</div>
+                                                <div x-show="cell.quotaDisabled && cell.quotaResetTime" class="text-[9px] text-gray-500" x-text="'Resets: ' + new Date(cell.quotaResetTime).toLocaleString()"></div>
+                                                <div x-show="cell.disabled && !cell.quotaDisabled" class="text-red-500 font-bold mt-1" x-text="$store.global.t('disabled').toUpperCase()">DISABLED</div>
                                             </div>
                                         </div>
                                     </div>

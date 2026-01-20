@@ -156,7 +156,11 @@ window.Components.healthPage = () => ({
         let classes = '';
         let type = '';
 
-        if (cell.disabled) {
+        if (cell.quotaDisabled) {
+            // Quota disabled - use orange/amber to distinguish from failure-disabled
+            type = 'disabled';
+            classes = 'bg-orange-500/20 text-orange-500 border-orange-500/30';
+        } else if (cell.disabled) {
             type = 'disabled';
             classes = 'bg-red-500/20 text-red-500 border-red-500/30';
         } else if (cell.healthScore >= 90) {
