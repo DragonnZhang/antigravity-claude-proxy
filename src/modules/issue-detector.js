@@ -64,7 +64,9 @@ function getThresholds() {
         healthDegraded: {
             threshold: healthConfig.healthThresholdWarn || 70,
             criticalThreshold: healthConfig.healthThresholdCritical || 50
-        }
+        },
+        // Auto-resolve stale issues after this time without recurrence
+        staleIssueMs: 30 * 60 * 1000  // 30 minutes
     };
 }
 
@@ -484,10 +486,42 @@ export function clearOldResolved(maxAgeMs = 24 * 60 * 60 * 1000) {
 }
 
 /**
+ * Auto-resolve stale active issues that haven't recurred recently
+ * @returns {number} Number of issues auto-resolved
+ */
+export function clearStaleActiveIssues() {
+    const thresholds = getThresholds();
+    const cutoff = Date.now() - thresholds.staleIssueMs;
+    let resolved = 0;
+
+    for (const issue of issues) {
+        if (issue.status !== IssueStatus.ACTIVE) continue;
+
+        const lastSeenTime = new Date(issue.lastSeen).getTime();
+        if (lastSeenTime < cutoff) {
+            issue.status = IssueStatus.RESOLVED;
+            issue.resolvedAt = new Date().toISOString();
+            issue.autoResolved = true;
+            resolved++;
+            logger.info(`[IssueDetector] Auto-resolved stale issue: ${issue.title}`);
+        }
+    }
+
+    if (resolved > 0) {
+        isDirty = true;
+    }
+
+    return resolved;
+}
+
+/**
  * Initialize the issue detector
  */
 export function initialize() {
     load();
+
+    // Clean up stale issues on startup
+    clearStaleActiveIssues();
 
     // Run initial detection from recent events
     detectFromRecentEvents(60 * 60 * 1000); // Check last hour on startup
@@ -497,8 +531,9 @@ export function initialize() {
         detectFromRecentEvents(5 * 60 * 1000); // Check last 5 minutes
     }, 30 * 1000);
 
-    // Auto-save every minute
+    // Auto-save and cleanup every minute
     setInterval(() => {
+        clearStaleActiveIssues();
         save();
         clearOldResolved();
     }, 60 * 1000);
@@ -592,5 +627,6 @@ export default {
     acknowledgeIssue,
     getStats,
     clearOldResolved,
+    clearStaleActiveIssues,
     detectFromRecentEvents
 };
