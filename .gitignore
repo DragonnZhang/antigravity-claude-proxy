@@ -33,3 +33,6 @@ tests/utils/*.jpeg
 # Build output
 dist/
 build/
+
+# Generated CSS (auto-built via npm install)
+public/css/style.css
