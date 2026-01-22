@@ -252,7 +252,6 @@ export async function* sendMessageStream(anthropicRequest, accountManager, fallb
                             // Decision: wait and retry OR switch account
                             if (resetMs && resetMs > DEFAULT_COOLDOWN_MS) {
                                 // Long-term quota exhaustion (> 10s) - switch to next account
-                                logger.info(`[CloudCode] Quota exhausted for ${account.email} (${formatDuration(resetMs)}), switching account...`);
                                 accountManager.markRateLimited(account.email, resetMs, model);
                                 eventManager.recordRateLimit(account.email, model, { resetMs, statusCode: 429, streaming: true, action: 'switch_account' });
                                 throw new Error(`QUOTA_EXHAUSTED: ${errorText}`);
@@ -405,7 +404,6 @@ export async function* sendMessageStream(anthropicRequest, accountManager, fallb
                 // Auth invalid - already marked, record health failure and continue to next account
                 accountManager.recordHealth(account.email, model, false, { message: 'Auth error', code: 401 });
                 eventManager.recordAuthFailure(account.email, model, { error: error.message, streaming: true, action: 'switch_account' });
-                logger.warn(`[CloudCode] Account ${account.email} has invalid credentials, trying next...`);
                 continue;
             }
             // Handle 5xx errors
@@ -425,8 +423,6 @@ export async function* sendMessageStream(anthropicRequest, accountManager, fallb
                 if (consecutiveFailures >= MAX_CONSECUTIVE_FAILURES) {
                     logger.warn(`[CloudCode] Account ${account.email} has ${consecutiveFailures} consecutive failures, applying extended cooldown (${formatDuration(EXTENDED_COOLDOWN_MS)})`);
                     accountManager.markRateLimited(account.email, EXTENDED_COOLDOWN_MS, model);
-                } else {
-                    logger.warn(`[CloudCode] Account ${account.email} failed with ${statusCode} stream error, trying next...`);
                 }
                 continue;
             }
@@ -445,8 +441,6 @@ export async function* sendMessageStream(anthropicRequest, accountManager, fallb
                 if (consecutiveFailures >= MAX_CONSECUTIVE_FAILURES) {
                     logger.warn(`[CloudCode] Account ${account.email} has ${consecutiveFailures} consecutive network failures, applying extended cooldown (${formatDuration(EXTENDED_COOLDOWN_MS)})`);
                     accountManager.markRateLimited(account.email, EXTENDED_COOLDOWN_MS, model);
-                } else {
-                    logger.warn(`[CloudCode] Network error for ${account.email} (stream), trying next account... (${error.message})`);
                 }
                 await sleep(1000);
                 continue;

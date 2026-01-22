@@ -140,16 +140,8 @@ function broadcast(event) {
 }
 
 /**
- * Record a structured event
+ * Record a structured event and optionally output to terminal
  * @param {Object} eventData - Event data
- * @param {string} eventData.type - Event type (from EventType)
- * @param {string} [eventData.requestId] - Associated request ID
- * @param {string} [eventData.account] - Account email
- * @param {string} [eventData.model] - Model ID
- * @param {string} [eventData.severity] - Severity level (from Severity)
- * @param {string} eventData.message - Human-readable message
- * @param {Object} [eventData.details] - Additional details
- * @returns {Object} The recorded event
  */
 export function record(eventData) {
     const event = {
@@ -167,12 +159,36 @@ export function record(eventData) {
     events.push(event);
     isDirty = true;
 
-    // Broadcast to SSE clients (WebUI receives structured events via Event SSE)
-    // Note: We intentionally do NOT call logger here to avoid duplicate logs.
-    // Terminal output is handled by the original logger calls in CloudCode handlers.
+    // Broadcast to SSE clients
     broadcast(event);
 
     return event;
+}
+
+/**
+ * Log a message to both terminal and EventManager
+ * This is the preferred way to log business-level information.
+ * Debug logs should still use logger.debug() directly to avoid overhead.
+ *
+ * @param {string} severity - 'info' | 'warn' | 'error' | 'success'
+ * @param {string} message - Log message
+ * @param {Object} [details] - Additional event details
+ */
+export function log(severity, message, details = {}) {
+    // 1. Terminal output via original logger
+    const logMethod = severity === 'success' ? 'success' :
+                      (severity === 'warn' ? 'warn' :
+                      (severity === 'error' ? 'error' : 'info'));
+
+    logger[logMethod](message);
+
+    // 2. Record as a structured system event
+    return record({
+        type: EventType.SYSTEM,
+        severity: severity === 'success' ? Severity.INFO : severity,
+        message,
+        details
+    });
 }
 
 /**
@@ -445,13 +461,17 @@ export function recordRateLimit(account, model, details = {}) {
     }
     const statusCode = details.statusCode ? ` (${details.statusCode})` : '';
     const action = details.action ? ` → ${details.action}` : '';
+    const message = `Rate limit hit for ${account} on ${model}${statusCode}${resetInfo}${action}`;
+
+    // Output to terminal
+    logger.warn(`[CloudCode] ${message}`);
 
     return record({
         type: EventType.RATE_LIMIT,
         account,
         model,
         severity: Severity.WARN,
-        message: `Rate limit hit for ${account} on ${model}${statusCode}${resetInfo}${action}`,
+        message,
         details
     });
 }
@@ -461,13 +481,17 @@ export function recordRateLimit(account, model, details = {}) {
  */
 export function recordAuthFailure(account, model, details = {}) {
     const action = details.action ? ` → ${details.action}` : '';
+    const message = `Auth failure for ${account} on ${model}${action}`;
+
+    // Output to terminal
+    logger.error(`[CloudCode] ${message}`);
 
     return record({
         type: EventType.AUTH_FAILURE,
         account,
         model,
         severity: Severity.ERROR,
-        message: `Auth failure for ${account} on ${model}${action}`,
+        message,
         details
     });
 }
@@ -476,11 +500,16 @@ export function recordAuthFailure(account, model, details = {}) {
  * Record a fallback event
  */
 export function recordFallback(fromModel, toModel, reason, details = {}) {
+    const message = `Fallback from ${fromModel} to ${toModel}: ${reason}`;
+
+    // Output to terminal
+    logger.warn(`[CloudCode] ${message}`);
+
     return record({
         type: EventType.FALLBACK,
         model: fromModel,
         severity: Severity.WARN,
-        message: `Fallback from ${fromModel} to ${toModel}: ${reason}`,
+        message,
         details: { ...details, fromModel, toModel, reason }
     });
 }
@@ -489,12 +518,17 @@ export function recordFallback(fromModel, toModel, reason, details = {}) {
  * Record an account switch event
  */
 export function recordAccountSwitch(fromAccount, toAccount, model, reason, details = {}) {
+    const message = `Switched from ${fromAccount} to ${toAccount} on ${model}: ${reason}`;
+
+    // Output to terminal
+    logger.info(`[CloudCode] ${message}`);
+
     return record({
         type: EventType.ACCOUNT_SWITCH,
         account: toAccount,
         model,
         severity: Severity.INFO,
-        message: `Switched from ${fromAccount} to ${toAccount} on ${model}: ${reason}`,
+        message,
         details: { ...details, fromAccount, toAccount, reason }
     });
 }
@@ -503,13 +537,22 @@ export function recordAccountSwitch(fromAccount, toAccount, model, reason, detai
  * Record a health change event
  */
 export function recordHealthChange(account, model, change, details = {}) {
-    const severity = change === 'disabled' ? Severity.ERROR : Severity.INFO;
+    const severity = change === 'disabled' || change === 'quota_disabled' ? Severity.ERROR : Severity.INFO;
+    const message = `Health ${change} for ${account} on ${model}`;
+
+    // Output to terminal
+    if (severity === Severity.ERROR) {
+        logger.error(`[Health] ${message}`);
+    } else {
+        logger.info(`[Health] ${message}`);
+    }
+
     return record({
         type: EventType.HEALTH_CHANGE,
         account,
         model,
         severity,
-        message: `Health ${change} for ${account} on ${model}`,
+        message,
         details: { ...details, change }
     });
 }
@@ -518,28 +561,26 @@ export function recordHealthChange(account, model, change, details = {}) {
  * Record a request completion event
  */
 export function recordRequest(requestId, account, model, success, latencyMs, details = {}) {
+    const message = success
+        ? `Request ${requestId} completed in ${latencyMs}ms`
+        : `Request ${requestId} failed after ${latencyMs}ms`;
+
+    // No terminal output for every request to keep it clean,
+    // unless it's a failure which might already be logged elsewhere.
+
     return record({
         type: EventType.REQUEST,
         requestId,
         account,
         model,
         severity: success ? Severity.INFO : Severity.WARN,
-        message: success
-            ? `Request ${requestId} completed in ${latencyMs}ms`
-            : `Request ${requestId} failed after ${latencyMs}ms`,
+        message,
         details: { ...details, success, latencyMs }
     });
 }
 
 /**
  * Record an API error event (5xx, network, unknown errors)
- * @param {string} account - Account email
- * @param {string} model - Model ID
- * @param {string} errorType - Error category: 'server_error' | 'network_error' | 'unknown_error'
- * @param {Object} details - Additional details
- * @param {string} [details.statusCode] - HTTP status code (e.g., 500, 503)
- * @param {string} [details.message] - Error message
- * @param {string} [details.action] - Action taken (e.g., 'retry', 'switch_account', 'fallback')
  */
 export function recordApiError(account, model, errorType, details = {}) {
     const errorLabels = {
@@ -550,13 +591,17 @@ export function recordApiError(account, model, errorType, details = {}) {
     const label = errorLabels[errorType] || errorType;
     const statusCode = details.statusCode ? ` (${details.statusCode})` : '';
     const action = details.action ? ` → ${details.action}` : '';
+    const message = `${label} error for ${account} on ${model}${statusCode}${action}`;
+
+    // Output to terminal
+    logger.error(`[CloudCode] ${message}`);
 
     return record({
         type: EventType.API_ERROR,
         account,
         model,
         severity: Severity.ERROR,
-        message: `${label} error for ${account} on ${model}${statusCode}${action}`,
+        message,
         details: { ...details, errorType }
     });
 }
@@ -567,6 +612,7 @@ export default {
     initialize,
     setupRoutes,
     record,
+    log,
     getEvents,
     getStats,
     clear,

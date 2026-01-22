@@ -819,6 +819,9 @@ export function mountWebUI(app, dirname, accountManager) {
             const updates = req.body;
             const newConfig = accountManager.setHealthConfig(updates);
 
+            // Record config change event
+            eventManager.log('info', '[Health] Configuration updated via WebUI', { updates });
+
             // Notify quota poller of config change (may start/stop polling)
             quotaPoller.onConfigChange();
 
