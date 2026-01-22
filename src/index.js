@@ -7,6 +7,7 @@ import app, { accountManager } from './server.js';
 import { DEFAULT_PORT } from './constants.js';
 import { logger } from './utils/logger.js';
 import { getStrategyLabel, STRATEGY_NAMES, DEFAULT_STRATEGY } from './account-manager/strategies/index.js';
+import eventManager from './modules/event-manager.js';
 import path from 'path';
 import os from 'os';
 
@@ -58,7 +59,7 @@ const server = app.listen(PORT, () => {
     // align for 2-space indent (60 chars), align4 for 4-space indent (58 chars)
     const align = (text) => text + ' '.repeat(Math.max(0, 60 - text.length));
     const align4 = (text) => text + ' '.repeat(Math.max(0, 58 - text.length));
-    
+
     // Build Control section dynamically
     const strategyOptions = `(${STRATEGY_NAMES.join('/')})`;
     const strategyLine2 = '                       ' + strategyOptions;
@@ -120,8 +121,15 @@ ${border}    ${align4(`export ANTHROPIC_BASE_URL=http://localhost:${PORT}`)}${bo
 ║                                                              ║
 ╚══════════════════════════════════════════════════════════════╝
   `);
-    
+
     logger.success(`Server started successfully on port ${PORT}`);
+    eventManager.log('success', `[System] Antigravity Claude Proxy started on port ${PORT}`, {
+        port: PORT,
+        debug: isDebug,
+        fallback: isFallbackEnabled,
+        strategy: strategyLabel
+    });
+
     if (isDebug) {
         logger.warn('Running in DEBUG mode - verbose logs enabled');
     }
@@ -129,7 +137,7 @@ ${border}    ${align4(`export ANTHROPIC_BASE_URL=http://localhost:${PORT}`)}${bo
 
 // Graceful shutdown
 const shutdown = () => {
-    logger.info('Shutting down server...');
+    eventManager.log('info', '[System] Shutting down server...');
     server.close(() => {
         logger.success('Server stopped');
         process.exit(0);

@@ -60,7 +60,9 @@ async function setAccountEnabled(email, enabled) {
     }
     account.enabled = enabled;
     await saveAccounts(ACCOUNT_CONFIG_PATH, accounts, settings, activeIndex);
-    logger.info(`[WebUI] Account ${email} ${enabled ? 'enabled' : 'disabled'}`);
+
+    // Audit log
+    eventManager.log(enabled ? 'info' : 'warn', `[WebUI] Account ${email} manually ${enabled ? 'enabled' : 'disabled'}`);
 }
 
 /**
@@ -76,7 +78,9 @@ async function removeAccount(email) {
     // Adjust activeIndex if needed
     const newActiveIndex = activeIndex >= accounts.length ? Math.max(0, accounts.length - 1) : activeIndex;
     await saveAccounts(ACCOUNT_CONFIG_PATH, accounts, settings, newActiveIndex);
-    logger.info(`[WebUI] Account ${email} removed`);
+
+    // Audit log
+    eventManager.log('warn', `[WebUI] Account ${email} permanently removed via WebUI`);
 }
 
 /**
@@ -98,7 +102,7 @@ async function addAccount(accountData) {
             invalidReason: null,
             addedAt: accounts[existingIndex].addedAt || new Date().toISOString()
         };
-        logger.info(`[WebUI] Account ${accountData.email} updated`);
+        eventManager.log('info', `[WebUI] Account ${accountData.email} credentials updated`);
     } else {
         // Check MAX_ACCOUNTS limit before adding new account
         if (accounts.length >= MAX_ACCOUNTS) {
@@ -114,7 +118,7 @@ async function addAccount(accountData) {
             lastUsed: null,
             addedAt: new Date().toISOString()
         });
-        logger.info(`[WebUI] Account ${accountData.email} added`);
+        eventManager.log('success', `[WebUI] New account ${accountData.email} added successfully`);
     }
 
     await saveAccounts(ACCOUNT_CONFIG_PATH, accounts, settings, activeIndex);
@@ -190,6 +194,7 @@ export function mountWebUI(app, dirname, accountManager) {
             const { email } = req.params;
             accountManager.clearTokenCache(email);
             accountManager.clearProjectCache(email);
+            eventManager.log('info', `[WebUI] Token cache cleared for ${email}`);
             res.json({
                 status: 'ok',
                 message: `Token cache cleared for ${email}`
@@ -254,6 +259,7 @@ export function mountWebUI(app, dirname, accountManager) {
             await accountManager.reload();
 
             const status = accountManager.getStatus();
+            eventManager.log('info', `[WebUI] Accounts reloaded from disk (${status.total} accounts)`);
             res.json({
                 status: 'ok',
                 message: 'Accounts reloaded from disk',
@@ -388,6 +394,7 @@ export function mountWebUI(app, dirname, accountManager) {
             if (success) {
                 // Update in-memory config
                 config.webuiPassword = newPassword;
+                eventManager.log('warn', '[WebUI] Password changed successfully');
                 res.json({
                     status: 'ok',
                     message: 'Password changed successfully'
