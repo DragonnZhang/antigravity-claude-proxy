@@ -1,48 +1,5 @@
 <div class="view-container h-full flex flex-col relative">
-    <!-- Active Issues Banner -->
-    <div x-data="issueBanner" x-show="issues.length > 0"
-         class="flex-shrink-0 bg-space-900 border-b border-space-border/50 animate-fade-in z-20"
-         style="display: none;">
-        <div class="px-4 py-2">
-            <div class="flex items-center justify-between">
-                <h3 class="text-xs font-bold text-gray-400 uppercase tracking-wider flex items-center gap-2 py-1">
-                    <span class="w-2 h-2 rounded-full bg-red-500 animate-pulse"></span>
-                    Active Issues (<span x-text="issues.length"></span>)
-                </h3>
-                <button type="button" @click="expanded = !expanded" class="text-gray-500 hover:text-white transition-colors p-1">
-                    <svg class="w-4 h-4 transition-transform duration-200" :class="{'rotate-180': !expanded}" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 15l7-7 7 7" />
-                    </svg>
-                </button>
-            </div>
-            <div class="space-y-2 mt-2 pb-2" x-show="expanded" x-cloak
-                 x-transition:enter="transition ease-out duration-200"
-                 x-transition:enter-start="opacity-0 -translate-y-2"
-                 x-transition:enter-end="opacity-100 translate-y-0">
-                <template x-for="issue in issues" :key="issue.id">
-                    <div class="flex items-start gap-3 p-3 rounded border text-xs" :class="getColorClass(issue.severity)">
-                        <div class="mt-0.5 shrink-0" x-html="getIcon(issue.type)"></div>
-                        <div class="flex-1 min-w-0">
-                            <div class="flex items-center justify-between gap-2">
-                                <span class="font-bold truncate" x-text="issue.title"></span>
-                                <span class="opacity-60 text-[10px]" x-text="new Date(issue.lastSeen).toLocaleTimeString()"></span>
-                            </div>
-                            <p class="opacity-80 mt-0.5" x-text="issue.description"></p>
-                            <div class="flex items-center gap-2 mt-2" x-show="issue.suggestion">
-                                <span class="opacity-60" x-text="$store.global.t('suggestion')">Suggestion:</span>
-                                <span class="font-medium" x-text="issue.suggestion"></span>
-                            </div>
-                        </div>
-                        <button type="button" @click="resolveIssue(issue.id)"
-                            class="shrink-0 px-2 py-1 rounded bg-black/20 hover:bg-black/40 transition-colors text-[10px] font-mono border border-current opacity-60 hover:opacity-100"
-                            x-text="$store.global.t('resolve')">
-                            RESOLVE
-                        </button>
-                    </div>
-                </template>
-            </div>
-        </div>
-    </div>
+
 
     <div x-data="logsViewer" class="flex flex-col flex-1 min-h-0">
         <!-- Toolbar -->

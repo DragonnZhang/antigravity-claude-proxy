@@ -13,7 +13,7 @@ document.addEventListener('alpine:init', () => {
     Alpine.data('accountManager', window.Components.accountManager);
     Alpine.data('claudeConfig', window.Components.claudeConfig);
     Alpine.data('logsViewer', window.Components.logsViewer);
-    Alpine.data('issueBanner', window.Components.issueBanner);
+
     Alpine.data('healthMatrix', window.DashboardHealthMatrix.component);
     Alpine.data('healthPage', window.Components.healthPage);
 
@@ -71,24 +71,24 @@ document.addEventListener('alpine:init', () => {
             // Handle responsive sidebar transitions
             let lastWidth = window.innerWidth;
             let resizeTimeout = null;
-            
+
             window.addEventListener('resize', () => {
                 if (resizeTimeout) clearTimeout(resizeTimeout);
-                
+
                 resizeTimeout = setTimeout(() => {
                     const currentWidth = window.innerWidth;
                     const lgBreakpoint = 1024;
-                    
+
                     // Desktop -> Mobile: Auto-close sidebar to prevent overlay blocking screen
                     if (lastWidth >= lgBreakpoint && currentWidth < lgBreakpoint) {
                         this.sidebarOpen = false;
                     }
-                    
+
                     // Mobile -> Desktop: Auto-open sidebar (restore standard desktop layout)
                     if (lastWidth < lgBreakpoint && currentWidth >= lgBreakpoint) {
                         this.sidebarOpen = true;
                     }
-                    
+
                     lastWidth = currentWidth;
                 }, 150);
             });

@@ -115,7 +115,7 @@
     <div class="flex h-[calc(100vh-56px)] relative">
 
         <!-- Mobile Sidebar Overlay -->
-        <div x-show="sidebarOpen" 
+        <div x-show="sidebarOpen"
              x-transition:enter="transition-opacity ease-linear duration-300"
              x-transition:enter-start="opacity-0"
              x-transition:enter-end="opacity-100"
@@ -136,7 +136,7 @@
                  'lg:w-64': sidebarOpen,
                  'sidebar-collapsed': !sidebarOpen
              }">
-             
+
             <!-- Inner Sidebar Content (Fixed Width to prevent squashing) -->
             <div class="w-64 flex flex-col h-full pt-6 pb-4 flex-shrink-0">
                 <!-- Mobile Menu Header -->
@@ -152,7 +152,7 @@
                 <!-- Desktop Header (Main) -->
                 <div class="px-4 mb-2 text-xs font-bold text-gray-600 uppercase tracking-widest hidden lg:block"
                     x-text="$store.global.t('main')">Main</div>
-                
+
                 <nav class="flex flex-col gap-1">
                     <button
                         class="nav-item flex items-center gap-3 px-6 py-3 text-sm font-medium text-gray-400 hover:text-white hover:bg-white/5"
@@ -391,7 +391,7 @@
     <script src="js/components/account-manager.js"></script>
     <script src="js/components/claude-config.js"></script>
     <script src="js/components/logs-viewer.js"></script>
-    <script src="js/components/issue-banner.js"></script>
+
     <script src="js/components/server-config.js"></script>
     <script src="js/components/health-config.js"></script>
     <script src="js/components/model-manager.js"></script>
