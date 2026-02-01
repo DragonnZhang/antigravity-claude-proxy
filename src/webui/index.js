@@ -233,6 +233,76 @@ export function mountWebUI(app, dirname, accountManager) {
     });
 
     /**
+     * PATCH /api/accounts/:email - Update account settings (thresholds)
+     */
+    app.patch('/api/accounts/:email', async (req, res) => {
+        try {
+            const { email } = req.params;
+            const { quotaThreshold, modelQuotaThresholds } = req.body;
+
+            const { accounts, settings, activeIndex } = await loadAccounts(ACCOUNT_CONFIG_PATH);
+            const account = accounts.find(a => a.email === email);
+
+            if (!account) {
+                return res.status(404).json({ status: 'error', error: `Account ${email} not found` });
+            }
+
+            // Validate and update quotaThreshold (0-0.99 or null/undefined to clear)
+            if (quotaThreshold !== undefined) {
+                if (quotaThreshold === null) {
+                    delete account.quotaThreshold;
+                } else if (typeof quotaThreshold === 'number' && quotaThreshold >= 0 && quotaThreshold < 1) {
+                    account.quotaThreshold = quotaThreshold;
+                } else {
+                    return res.status(400).json({ status: 'error', error: 'quotaThreshold must be 0-0.99 or null' });
+                }
+            }
+
+            // Validate and update modelQuotaThresholds (full replacement, not merge)
+            if (modelQuotaThresholds !== undefined) {
+                if (modelQuotaThresholds === null || (typeof modelQuotaThresholds === 'object' && Object.keys(modelQuotaThresholds).length === 0)) {
+                    // Clear all model thresholds
+                    delete account.modelQuotaThresholds;
+                } else if (typeof modelQuotaThresholds === 'object') {
+                    // Validate all thresholds first
+                    for (const [modelId, threshold] of Object.entries(modelQuotaThresholds)) {
+                        if (typeof threshold !== 'number' || threshold < 0 || threshold >= 1) {
+                            return res.status(400).json({
+                                status: 'error',
+                                error: `Invalid threshold for model ${modelId}: must be 0-0.99`
+                            });
+                        }
+                    }
+                    // Replace entire object (not merge)
+                    account.modelQuotaThresholds = { ...modelQuotaThresholds };
+                } else {
+                    return res.status(400).json({ status: 'error', error: 'modelQuotaThresholds must be an object or null' });
+                }
+            }
+
+            await saveAccounts(ACCOUNT_CONFIG_PATH, accounts, settings, activeIndex);
+
+            // Reload AccountManager to pick up changes
+            await accountManager.reload();
+
+            logger.info(`[WebUI] Account ${email} thresholds updated`);
+
+            res.json({
+                status: 'ok',
+                message: `Account ${email} thresholds updated`,
+                account: {
+                    email: account.email,
+                    quotaThreshold: account.quotaThreshold,
+                    modelQuotaThresholds: account.modelQuotaThresholds || {}
+                }
+            });
+        } catch (error) {
+            logger.error('[WebUI] Error updating account thresholds:', error);
+            res.status(500).json({ status: 'error', error: error.message });
+        }
+    });
+
+    /**
      * POST /api/accounts/reload - Reload accounts from disk
      */
     app.post('/api/accounts/reload', async (req, res) => {
@@ -387,7 +457,7 @@ export function mountWebUI(app, dirname, accountManager) {
      */
     app.post('/api/config', (req, res) => {
         try {
-            const { debug, logLevel, maxRetries, retryBaseMs, retryMaxMs, persistTokenCache, defaultCooldownMs, maxWaitBeforeErrorMs, maxAccounts, accountSelection, rateLimitDedupWindowMs, maxConsecutiveFailures, extendedCooldownMs, maxCapacityRetries } = req.body;
+            const { debug, logLevel, maxRetries, retryBaseMs, retryMaxMs, persistTokenCache, defaultCooldownMs, maxWaitBeforeErrorMs, maxAccounts, globalQuotaThreshold, accountSelection, rateLimitDedupWindowMs, maxConsecutiveFailures, extendedCooldownMs, maxCapacityRetries } = req.body;
 
             // Only allow updating specific fields (security)
             const updates = {};
@@ -415,6 +485,9 @@ export function mountWebUI(app, dirname, accountManager) {
             }
             if (typeof maxAccounts === 'number' && maxAccounts >= 1 && maxAccounts <= 100) {
                 updates.maxAccounts = maxAccounts;
+            }
+            if (typeof globalQuotaThreshold === 'number' && globalQuotaThreshold >= 0 && globalQuotaThreshold < 1) {
+                updates.globalQuotaThreshold = globalQuotaThreshold;
             }
             if (typeof rateLimitDedupWindowMs === 'number' && rateLimitDedupWindowMs >= 1000 && rateLimitDedupWindowMs <= 30000) {
                 updates.rateLimitDedupWindowMs = rateLimitDedupWindowMs;

@@ -557,6 +557,7 @@ app.get('/account-limits', async (req, res) => {
             totalAccounts: allAccounts.length,
             models: sortedModels,
             modelConfig: config.modelMapping || {},
+            globalQuotaThreshold: config.globalQuotaThreshold || 0,
             accounts: accountLimits.map(acc => {
                 // Merge quota data with account metadata
                 const metadata = accountMetadataMap.get(acc.email) || {};
@@ -572,6 +573,9 @@ app.get('/account-limits', async (req, res) => {
                     invalidReason: metadata.invalidReason || null,
                     lastUsed: metadata.lastUsed || null,
                     modelRateLimits: metadata.modelRateLimits || {},
+                    // Quota threshold settings
+                    quotaThreshold: metadata.quotaThreshold,
+                    modelQuotaThresholds: metadata.modelQuotaThresholds || {},
                     // Subscription data (new)
                     subscription: acc.subscription || metadata.subscription || { tier: 'unknown', projectId: null },
                     // Quota limits
