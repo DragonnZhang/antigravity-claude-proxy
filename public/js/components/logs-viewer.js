@@ -9,7 +9,7 @@ window.Components.logsViewer = () => ({
     isAutoScroll: true,
     eventSource: null,
     searchQuery: '',
-    expandedLogs: new Set(),
+    expandedLogs: new Set(), // Store timestamps instead of indices for stability
     filters: {
         INFO: true,
         WARN: true,
@@ -104,16 +104,25 @@ window.Components.logsViewer = () => ({
         if (container) container.scrollTop = container.scrollHeight;
     },
 
-    toggleLog(idx) {
-        if (this.expandedLogs.has(idx)) {
-            this.expandedLogs.delete(idx);
+    /**
+     * Toggle log expansion by timestamp (stable ID) instead of index
+     * @param {string} timestamp - Log timestamp as stable identifier
+     */
+    toggleLog(timestamp) {
+        if (this.expandedLogs.has(timestamp)) {
+            this.expandedLogs.delete(timestamp);
         } else {
-            this.expandedLogs.add(idx);
+            this.expandedLogs.add(timestamp);
         }
     },
 
-    isExpanded(idx) {
-        return this.expandedLogs.has(idx);
+    /**
+     * Check if a log is expanded by its timestamp
+     * @param {string} timestamp - Log timestamp
+     * @returns {boolean}
+     */
+    isExpanded(timestamp) {
+        return this.expandedLogs.has(timestamp);
     },
 
     formatData(data) {

@@ -772,7 +772,11 @@ app.post('/v1/messages', async (req, res) => {
             temperature
         };
 
-        const logDetails = {
+        logger.info(`[API] Request for model: ${request.model}, stream: ${!!stream}`);
+
+        // Only include full request payloads in debug mode to protect sensitive data
+        // In normal mode, only include metadata (model, stream flag, message count/roles)
+        const logDetails = logger.isDebugEnabled ? {
             request: {
                 model: request.model,
                 stream: !!request.stream,
@@ -780,6 +784,15 @@ app.post('/v1/messages', async (req, res) => {
                 system: request.system,
                 tools: request.tools,
                 thinking: request.thinking
+            }
+        } : {
+            request: {
+                model: request.model,
+                stream: !!request.stream,
+                messageCount: request.messages?.length || 0,
+                hasSystem: !!request.system,
+                toolCount: request.tools?.length || 0,
+                thinking: !!request.thinking
             }
         };
 
@@ -905,9 +918,17 @@ app.post('/v1/messages', async (req, res) => {
                 }
 
                 // Log final accumulated response
+                // Only include full response in debug mode to protect sensitive data
+                const responseLogData = logger.isDebugEnabled 
+                    ? finalizeAccumulatedResponse()
+                    : {
+                        usage: finalizeAccumulatedResponse().usage,
+                        model: request.model
+                    };
+                
                 logger.info(`[API] Transaction finished for model: ${request.model}`, logger.withData({
                     request: logDetails.request,
-                    response: finalizeAccumulatedResponse()
+                    response: responseLogData
                 }));
 
                 res.end();
@@ -945,9 +966,17 @@ app.post('/v1/messages', async (req, res) => {
         } else {
             // Handle non-streaming response
             const response = await sendMessage(request, accountManager, FALLBACK_ENABLED);
+            // Only include full response in debug mode to protect sensitive data
+            const responseLogData = logger.isDebugEnabled 
+                ? response
+                : {
+                    usage: response.usage,
+                    model: response.model
+                };
+            
             logger.info(`[API] Transaction finished for model: ${request.model}`, logger.withData({
                 request: logDetails.request,
-                response: response
+                response: responseLogData
             }));
             res.json(response);
         }
