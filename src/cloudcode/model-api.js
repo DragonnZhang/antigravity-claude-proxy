@@ -14,6 +14,7 @@ import {
     MODEL_VALIDATION_CACHE_TTL_MS
 } from '../constants.js';
 import { logger } from '../utils/logger.js';
+import { throttledFetch } from '../utils/helpers.js';
 
 // Model validation cache
 const modelCache = {
@@ -48,12 +49,12 @@ export async function listModels(token) {
     const modelList = Object.entries(data.models)
         .filter(([modelId]) => isSupportedModel(modelId))
         .map(([modelId, modelData]) => ({
-        id: modelId,
-        object: 'model',
-        created: Math.floor(Date.now() / 1000),
-        owned_by: 'anthropic',
-        description: modelData.displayName || modelId
-    }));
+            id: modelId,
+            object: 'model',
+            created: Math.floor(Date.now() / 1000),
+            owned_by: 'anthropic',
+            description: modelData.displayName || modelId
+        }));
 
     // Warm the model validation cache
     modelCache.validModels = new Set(modelList.map(m => m.id));
@@ -86,7 +87,7 @@ export async function fetchAvailableModels(token, projectId = null) {
     for (const endpoint of ANTIGRAVITY_ENDPOINT_FALLBACKS) {
         try {
             const url = `${endpoint}/v1internal:fetchAvailableModels`;
-            const response = await fetch(url, {
+            const response = await throttledFetch(url, {
                 method: 'POST',
                 headers,
                 body: JSON.stringify(body)
@@ -178,14 +179,12 @@ export async function getSubscriptionTier(token) {
     for (const endpoint of LOAD_CODE_ASSIST_ENDPOINTS) {
         try {
             const url = `${endpoint}/v1internal:loadCodeAssist`;
-            const response = await fetch(url, {
+            const response = await throttledFetch(url, {
                 method: 'POST',
                 headers,
                 body: JSON.stringify({
-                    metadata: {
-                        ...CLIENT_METADATA,
-                        duetProject: 'rising-fact-p41fc'
-                    }
+                    metadata: CLIENT_METADATA,
+                    mode: 1
                 })
             });
 
