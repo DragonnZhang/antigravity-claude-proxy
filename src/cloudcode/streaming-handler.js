@@ -32,6 +32,7 @@ import {
     isModelCapacityExhausted,
     isValidationRequired,
     extractVerificationUrl,
+    isAccountBanned,
     calculateSmartBackoff
 } from './rate-limit-state.js';
 import crypto from 'crypto';
@@ -155,7 +156,7 @@ export async function* sendMessageStream(anthropicRequest, accountManager, fallb
 
                     const response = await throttledFetch(url, {
                         method: 'POST',
-                        headers: buildHeaders(token, model, 'text/event-stream'),
+                        headers: buildHeaders(token, model, 'text/event-stream', payload.request.sessionId),
                         body: JSON.stringify(payload)
                     });
 
@@ -290,6 +291,14 @@ export async function* sendMessageStream(anthropicRequest, accountManager, fallb
                             throw new AccountForbiddenError(errorText, account.email);
                         }
 
+                        // 403 with permanent ToS ban — account is permanently disabled by Google
+                        // Unlike VALIDATION_REQUIRED, this cannot be resolved by verification
+                        if (response.status === 403 && isAccountBanned(errorText)) {
+                            logger.warn(`[CloudCode] 403 ToS BANNED for ${account.email}, marking invalid permanently...`);
+                            accountManager.markInvalid(account.email, 'Account banned — Gemini disabled for Terms of Service violation');
+                            throw new AccountForbiddenError(errorText, account.email);
+                        }
+
                         lastError = new Error(`API error ${response.status}: ${errorText}`);
 
                         // Try next endpoint for 403/404/5xx errors (matches opencode-antigravity-auth behavior)
@@ -336,7 +345,7 @@ export async function* sendMessageStream(anthropicRequest, accountManager, fallb
                             // Refetch the response
                             currentResponse = await throttledFetch(url, {
                                 method: 'POST',
-                                headers: buildHeaders(token, model, 'text/event-stream'),
+                                headers: buildHeaders(token, model, 'text/event-stream', payload.request.sessionId),
                                 body: JSON.stringify(payload)
                             });
 

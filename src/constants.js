@@ -6,6 +6,7 @@
 import { homedir, platform, arch } from 'os';
 import { join } from 'path';
 import { config } from './config.js';
+import { generateSmartUserAgent } from './utils/version-detector.js';
 
 /**
  * Get the Antigravity database path based on the current platform.
@@ -30,10 +31,8 @@ function getAntigravityDbPath() {
  * Generate platform-specific User-Agent string.
  * @returns {string} User-Agent in format "antigravity/version os/arch"
  */
-function getPlatformUserAgent() {
-    const os = platform();
-    const architecture = arch();
-    return `antigravity/1.16.5 ${os}/${architecture}`;
+export function getPlatformUserAgent() {
+    return generateSmartUserAgent();
 }
 
 // IDE Type enum (numeric values as expected by Cloud Code API)
@@ -103,7 +102,10 @@ export const ANTIGRAVITY_ENDPOINT_FALLBACKS = [
 // Strictly matches the generic 'u' method in main.js
 export const ANTIGRAVITY_HEADERS = {
     'User-Agent': getPlatformUserAgent(),
-    'Content-Type': 'application/json'
+    'Content-Type': 'application/json',
+    'X-Client-Name': 'antigravity',
+    'X-Client-Version': '1.107.0', // Match product.json version
+    'x-goog-api-client': 'gl-node/18.18.2 fire/0.8.6 grpc/1.10.x' // Simulate Google Node.js client environment
 };
 
 // Endpoint order for loadCodeAssist (prod first)
@@ -275,17 +277,17 @@ export const ANTIGRAVITY_SYSTEM_INSTRUCTION = `You are Antigravity, a powerful a
 
 // Model fallback mapping - maps primary model to fallback when quota exhausted
 export const MODEL_FALLBACK_MAP = {
-    'gemini-3-pro-high': 'claude-opus-4-6-thinking',
-    'gemini-3-pro-low': 'claude-sonnet-4-5',
-    'gemini-3-flash': 'claude-sonnet-4-5-thinking',
-    'claude-opus-4-6-thinking': 'gemini-3-pro-high',
-    'claude-sonnet-4-5-thinking': 'gemini-3-flash',
-    'claude-sonnet-4-5': 'gemini-3-flash'
+    'gemini-3.1-pro-high': 'claude-opus-4-6-thinking',
+    'gemini-3.1-pro-low': 'claude-sonnet-4-6',
+    'gemini-3-flash': 'claude-sonnet-4-6-thinking',
+    'claude-opus-4-6-thinking': 'gemini-3.1-pro-high',
+    'claude-sonnet-4-6-thinking': 'gemini-3-flash',
+    'claude-sonnet-4-6': 'gemini-3-flash'
 };
 
 // Default test models for each family (used by test suite)
 export const TEST_MODELS = {
-    claude: 'claude-sonnet-4-5-thinking',
+    claude: 'claude-sonnet-4-6-thinking',
     gemini: 'gemini-3-flash'
 };
 
@@ -298,9 +300,9 @@ export const DEFAULT_PRESETS = [
             ANTHROPIC_BASE_URL: 'http://localhost:8080',
             ANTHROPIC_MODEL: 'claude-opus-4-6-thinking',
             ANTHROPIC_DEFAULT_OPUS_MODEL: 'claude-opus-4-6-thinking',
-            ANTHROPIC_DEFAULT_SONNET_MODEL: 'claude-sonnet-4-5-thinking',
-            ANTHROPIC_DEFAULT_HAIKU_MODEL: 'claude-sonnet-4-5',
-            CLAUDE_CODE_SUBAGENT_MODEL: 'claude-sonnet-4-5-thinking',
+            ANTHROPIC_DEFAULT_SONNET_MODEL: 'claude-sonnet-4-6-thinking',
+            ANTHROPIC_DEFAULT_HAIKU_MODEL: 'claude-sonnet-4-6',
+            CLAUDE_CODE_SUBAGENT_MODEL: 'claude-sonnet-4-6-thinking',
             ENABLE_EXPERIMENTAL_MCP_CLI: 'true'
         }
     },
@@ -309,11 +311,11 @@ export const DEFAULT_PRESETS = [
         config: {
             ANTHROPIC_AUTH_TOKEN: 'test',
             ANTHROPIC_BASE_URL: 'http://localhost:8080',
-            ANTHROPIC_MODEL: 'gemini-3-pro-high[1m]',
-            ANTHROPIC_DEFAULT_OPUS_MODEL: 'gemini-3-pro-high[1m]',
-            ANTHROPIC_DEFAULT_SONNET_MODEL: 'gemini-3-flash[1m]',
-            ANTHROPIC_DEFAULT_HAIKU_MODEL: 'gemini-3-flash[1m]',
-            CLAUDE_CODE_SUBAGENT_MODEL: 'gemini-3-flash[1m]',
+            ANTHROPIC_MODEL: 'gemini-3.1-pro-high[1m]',
+            ANTHROPIC_DEFAULT_OPUS_MODEL: 'gemini-3.1-pro-high[1m]',
+            ANTHROPIC_DEFAULT_SONNET_MODEL: 'gemini-3.1-flash[1m]',
+            ANTHROPIC_DEFAULT_HAIKU_MODEL: 'gemini-3.1-flash[1m]',
+            CLAUDE_CODE_SUBAGENT_MODEL: 'gemini-3.1-flash[1m]',
             ENABLE_EXPERIMENTAL_MCP_CLI: 'true'
         }
     }
